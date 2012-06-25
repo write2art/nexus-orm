@@ -32,7 +32,7 @@ class Nexus_Generator_Model
 
         $this->xpath = new DOMXPath($this->schema);
 
-        $this->outputPrefix = 'Data';
+        $this->outputPrefix = 'MV';
         $this->outputPath = realpath(APPLICATION_PATH . "/../library/{$this->outputPrefix}");
     }
 
@@ -378,6 +378,9 @@ class Nexus_Generator_Model
 
         $referenceMap->getDefaultValue()->setValue($referenceMapValue);
 
+        if ($queryClass->getMethod("use{$phpName}Query") !== false)
+            return;
+
         $queryClass->setMethods(array(
             array(
                 'docblock' => new Zend_CodeGenerator_Php_Docblock(array(
@@ -405,35 +408,43 @@ class Nexus_Generator_Model
         $reference = $foreignKey->getElementsByTagName('reference')->item(0);
 
         $addMethods = function($rowClass, $p) {
-            $rowClass->setMethods(array(
-                array(
-                    'docblock' => new Zend_CodeGenerator_Php_Docblock(array(
-                        'tags' => array(
+            try
+            {
+
+                $rowClass->setMethods(array(
+                    array(
+                        'docblock' => new Zend_CodeGenerator_Php_Docblock(array(
+                            'tags' => array(
+                                array(
+                                    'name' => 'return',
+                                    'description' => $p['finalRowName'], //$this->getFinalRowName($foreignTable),
+                                )
+                            ),
+                        )),
+                        'name' => "get{$p['phpName']}",
+                        'body' => "if (!array_key_exists('{$p['phpName']}', \$this->references) || (!\$this->references['{$p['phpName']}']->isModified() && !\$this->references['{$p['phpName']}']->isNew()) )\n" .
+                                  "    \$this->references['{$p['phpName']}'] = {$p['query']}::create()->findPk(\$this->get{$p['localColumn']}());\n\n" .
+                                  "return \$this->references['{$p['phpName']}'];"
+                    ),
+                    array(
+                        'name' => "set{$p['phpName']}",
+                        'parameters' => array(
                             array(
-                                'name' => 'return',
-                                'description' => $p['finalRowName'], //$this->getFinalRowName($foreignTable),
-                            )
-                        ),
-                    )),
-                    'name' => "get{$p['phpName']}",
-                    'body' => "if (!array_key_exists('{$p['phpName']}', \$this->references) || (!\$this->references['{$p['phpName']}']->isModified() && !\$this->references['{$p['phpName']}']->isNew()) )\n" .
-                              "    \$this->references['{$p['phpName']}'] = {$p['query']}::create()->findPk(\$this->get{$p['localColumn']}());\n\n" .
-                              "return \$this->references['{$p['phpName']}'];"
-                ),
-                array(
-                    'name' => "set{$p['phpName']}",
-                    'parameters' => array(
-                        array(
-                            'name' => 'value',
-                            'type' => $p['finalRowName']
-                    )),
-                    'body' => "if (\$value->isNew())\n" .
-                              "    \$this->references['{$p['phpName']}'] = \$value;\n" .
-                              "else\n" .
-                              "    \$this->set{$p['localColumn']}(\$value->get{$p['foreignColumn']}());\n\n" .
-                              "return \$this;"
-                )
-            ));
+                                'name' => 'value',
+                                'type' => $p['finalRowName']
+                        )),
+                        'body' => "if (\$value->isNew())\n" .
+                                  "    \$this->references['{$p['phpName']}'] = \$value;\n" .
+                                  "else\n" .
+                                  "    \$this->set{$p['localColumn']}(\$value->get{$p['foreignColumn']}());\n\n" .
+                                  "return \$this;"
+                    )
+                ));
+            }
+            catch (Zend_Exception $e)
+            {
+                echo "Some problems occured during model generation in $rowClass\n";
+            }
         };
 
         if (!array_key_exists($this->getRowName($table), $this->rows))
