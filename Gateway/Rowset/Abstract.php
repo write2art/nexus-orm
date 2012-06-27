@@ -76,7 +76,7 @@ abstract class Nexus_Gateway_Rowset_Abstract implements SeekableIterator, Counta
     public function toArray($recursive = false)
     {
         $result = array();
-        foreach($this->_resultSet as $record)
+        foreach($this as $record)
         {
             if ($recursive)
                 $result[] = $record->toArray(true);
