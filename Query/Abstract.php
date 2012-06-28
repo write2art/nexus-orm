@@ -2,6 +2,11 @@
 
 abstract class Nexus_Query_Abstract
 {
+    const EQUAL = 'equal';
+    const NOT_EQUAL = 'not_equal';
+    const GREATER = 'greater';
+    const LOWER = 'lower';
+
     /**
      * Объект запроса к базе
      * @access protected
@@ -82,76 +87,112 @@ abstract class Nexus_Query_Abstract
         return $this->getGateway()->delete($this->select);
     }
 
-    protected function stringFilter($key, $value)
+    protected function stringFilter($key, $value, $condition = null)
     {
         if (is_array($value) && !(array_key_exists('min', $value) || array_key_exists('max', $value)))
-            $this->select->where($this->applyInFilter($key, $value));
+            $this->select->where($this->applyInFilter($key, $value, $condition));
         if (is_string($value) && strpos($value, '%') !== false)
             $this->select->where($this->applyLikeFilter($key, $value));
         if (!is_array($value) && strpos($value, '%') === false)
-            $this->select->where($this->applyDefaultFilter($key, $value));
+            $this->select->where($this->applyDefaultFilter($key, $value, $condition));
     }
 
-    protected function booleanFilter($key, $value)
+    protected function booleanFilter($key, $value, $condition = null)
     {
-        if (in_array($value, array('yes', 1, true, 'on')))
+        if (in_array($value, array('yes', 1, true, 'on'), true))
             $value = 1;
-        elseif (in_array($value, array('no', 0, false, 'off', 'not')))
+        elseif (in_array($value, array('no', 0, false, 'off', 'not'), true))
             $value = 0;
 
-        $this->select->where($this->applyDefaultFilter($key, $value));
+        $this->select->where($this->applyDefaultFilter($key, $value, $condition));
     }
 
-    protected function integerFilter($key, $value)
+    protected function integerFilter($key, $value, $condition = null)
     {
-        $this->numberFilter($key, $value);
+        $this->numberFilter($key, $value, $condition);
     }
 
-    protected function numberFilter($key, $value)
+    protected function numberFilter($key, $value, $condition = null)
     {
         if (is_array($value) && (array_key_exists('min', $value) || array_key_exists('max', $value)) )
             $this->select->where($this->applyMinMaxFilter($key, $value));
         if (is_array($value) && !(array_key_exists('min', $value) || array_key_exists('max', $value)))
-            $this->select->where($this->applyInFilter($key, $value));
+            $this->select->where($this->applyInFilter($key, $value, $condition));
         if (!is_array($value) && strpos($value, '%') === false)
-            $this->select->where($this->applyDefaultFilter($key, $value));
+            $this->select->where($this->applyDefaultFilter($key, $value, $condition));
     }
 
-    protected function timeFilter($key, $value)
+    protected function timeFilter($key, $value, $condition = null)
     {
         if (is_array($value) && (array_key_exists('min', $value) || array_key_exists('max', $value)))
             $this->select->where($this->applyMinMaxFilter($key, $value));
         if (!is_array($value) && strpos($value, '%') === false)
-            $this->select->where($this->applyDefaultFilter($key, $value));
+            $this->select->where($this->applyDefaultFilter($key, $value, $condition));
     }
 
-    protected function enumFilter($key, $value)
+    protected function enumFilter($key, $value, $condition = null)
     {
         if (is_array($value) && !(array_key_exists('min', $value) || array_key_exists('max', $value)))
-            $this->select->where($this->applyInFilter($key, $value));
+            $this->select->where($this->applyInFilter($key, $value, $condition));
         if (!is_array($value) && strpos($value, '%') === false)
-            $this->select->where($this->applyDefaultFilter($key, $value));
+            $this->select->where($this->applyDefaultFilter($key, $value, $condition));
     }
 
-    protected function applyDefaultFilter($key, $value)
+    protected function applyDefaultFilter($key, $value, $condition = self::EQUAL)
     {
-        if ($value === null || 'null' == strtolower($value) || 'is null' == strtolower($value))
-            $where = "{$this->db->quoteIdentifier("{$this->tableName}.{$key}")} IS NULL";
-        elseif ('is not null' == strtolower($value) || 'not null' == strtolower($value))
-            $where = "{$this->db->quoteIdentifier("{$this->tableName}.{$key}")} IS NOT NULL";
+        if ($value === null || 'null' == strtolower($value))
+        {
+            switch ($condition)
+            {
+                case self::EQUAL:
+                    $condition = 'IS NULL';
+                    break;
+                default:
+                    $condition = 'IS NOT NULL';
+            }
+
+            $where = "{$this->db->quoteIdentifier("{$this->tableName}.{$key}")} $condition";
+        }
         else
-            $where = $this->db->quoteInto("{$this->db->quoteIdentifier("{$this->tableName}.{$key}")} = ?", $value);
+        {
+            switch ($condition)
+            {
+                case self::NOT_EQUAL:
+                    $condition = '!=';
+                    break;
+                case self::GREATER:
+                    $condition = '>';
+                    break;
+                case self::LOWER:
+                    $condition = '<';
+                    break;
+                case self::EQUAL:
+                default:
+                    $condition = '=';
+            }
+
+            $where = $this->db->quoteInto("{$this->db->quoteIdentifier("{$this->tableName}.{$key}")} $condition ?", $value);
+        }
 
         return $where;
     }
 
-    protected function applyInFilter($key, $values)
+    protected function applyInFilter($key, $values, $condition = self::EQUAL)
     {
         $in = array();
         foreach ($values as $value)
             $in[] = $this->db->quote($value);
 
-        return "{$this->db->quoteIdentifier("{$this->tableName}.{$key}")} IN (" . implode(', ', $in) . ")";
+        switch ($condition)
+        {
+            case self::NOT_EQUAL:
+                $condition = 'NOT IN';
+                break;
+            default:
+                $condition = 'IN';
+        }
+
+        return "{$this->db->quoteIdentifier("{$this->tableName}.{$key}")} $condition (" . implode(', ', $in) . ")";
     }
 
     protected function applyMinMaxFilter($key, $range)
@@ -190,6 +231,12 @@ abstract class Nexus_Query_Abstract
     public function distinct($flag = true)
     {
         $this->select->distinct($flag);
+        return $this;
+    }
+
+    public function limit($count = null, $offset = null)
+    {
+        $this->select->limit($count, $offset);
         return $this;
     }
 

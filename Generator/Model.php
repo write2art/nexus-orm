@@ -273,9 +273,13 @@ class Nexus_Generator_Model
                 array(
                     'name' => "filterBy{$methodName}",
                     'parameters' => array(
-                        array('name' => 'value')
+                        array('name' => 'value'),
+                        array(
+                            'name' => 'condition',
+                            'defaultValue' => Nexus_Query_Abstract::EQUAL
+                        )
                     ),
-                    'body' => "\$this->{$column->getAttribute('type')}Filter('$columnName', \$value);\nreturn \$this;"
+                    'body' => "\$this->{$column->getAttribute('type')}Filter('$columnName', \$value, \$condition);\nreturn \$this;"
                 ),
                 array(
                     'name' => "orderBy{$methodName}",
