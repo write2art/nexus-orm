@@ -33,7 +33,8 @@ class Nexus_Generator_DbSchema
 
         foreach($this->getTables() as $value)
         {
-            $tableName = array_shift(array_values($value));
+            $values = array_values($value);
+            $tableName = array_shift($values);
 
             $table = new Zend_Db_Table(array('name' => $tableName));
             $tableInfo = $table->info();
