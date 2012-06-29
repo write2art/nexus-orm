@@ -8,6 +8,8 @@ abstract class Nexus_Gateway_Row_Abstract
 
     protected $dependencies = array();
 
+    protected $readOnly = array();
+
     /**
      * @var Nexus_Gateway_Abstract
      */
@@ -40,7 +42,12 @@ abstract class Nexus_Gateway_Row_Abstract
             throw new Zend_Exception('Initial data must be an array or object');
 
         foreach ($data as $key => $value)
-            $this->data[$key] = $value;
+        {
+            if (array_key_exists($key, $this->data))
+                $this->data[$key] = $value;
+            else
+                $this->readOnly[$key] = $value;
+        }
 
         $this->new = false;
 
@@ -118,11 +125,28 @@ abstract class Nexus_Gateway_Row_Abstract
         return $data;
     }
 
-    /*
-    protected function underscoreToCamelCase($name)
+    public function __call($name, $arguments)
     {
-        return implode('', array_map(function($n) {return ucfirst($n);}, explode('_', $name) ));
+        throw new Zend_Exception("There is no method $name");
     }
-    */
+
+    public function __set($name, $value)
+    {
+        $filter = new Nexus_Filter_CamelCase();
+        $method = "set{$filter->filter($name)}";
+
+        $this->$method($value);
+
+        return $this;
+    }
+
+    public function __get($name)
+    {
+        $filter = new Nexus_Filter_CamelCase();
+        $method = "get{$filter->filter($name)}";
+
+        return $this->$method();
+    }
+
 
 }
