@@ -127,7 +127,7 @@ abstract class Nexus_Gateway_Row_Abstract
 
     public function __call($name, $arguments)
     {
-        throw new Zend_Exception("There is no method $name");
+        throw new Zend_Exception("There is no method $name in " . __CLASS__);
     }
 
     public function __set($name, $value)

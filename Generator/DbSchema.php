@@ -20,9 +20,15 @@ class Nexus_Generator_DbSchema
         $this->xml->formatOutput = true;
 
         if ($config && file_exists($config))
+        {
+            fwrite(STDOUT, "Config found. Updating if nessasary.\n");
             $this->xml->load($config);
+        }
         else
+        {
+            fwrite(STDOUT, "Config not found. Generating from scratch.\n");
             $this->xml->appendChild($this->xml->createElement('database'));
+        }
 
         $this->xpath = new DOMXPath($this->xml);
     }
@@ -31,6 +37,7 @@ class Nexus_Generator_DbSchema
     {
         $root = $this->xml->documentElement;
 
+        fwrite(STDOUT, "ACTION:\t\tTYPE:\t\tNAME: \n");
         foreach($this->getTables() as $value)
         {
             $values = array_values($value);
@@ -43,6 +50,7 @@ class Nexus_Generator_DbSchema
                 $tableNode = $this->xpath->query("//table[@name=\"$tableName\"]")->item (0);
             else
             {
+                fwrite(STDOUT, "added\t\ttable\t\t $tableName\n");
                 $tableNode = $this->xml->createElement('table');
                 $this->createNodeAttribute('name', $tableInfo['name'], $tableNode);
                 $this->createNodeAttribute('phpName', $this->underscoreToCamelCase($tableInfo['name']), $tableNode);
@@ -55,7 +63,7 @@ class Nexus_Generator_DbSchema
                     continue;
 
                 //echo $tableNode->getAttribute('name') . "\n";
-
+                fwrite(STDOUT, "added\t\tcolumn\t\t $tableName.$column \n");
                 $this->generateColumnDescription($column, $tableNode, $tableInfo);
             }
 
@@ -77,8 +85,13 @@ class Nexus_Generator_DbSchema
             $foreignKey = $this->xml->createElement('foreign-key');
             $this->createNodeAttribute('sqlName', $fk['constraint_name'], $foreignKey);
             $this->createNodeAttribute('foreignTable', $fk['foreign_table'], $foreignKey);
-            $this->createNodeAttribute('phpName', $this->underscoreToCamelCase($fk['foreign_table']), $foreignKey);
-            $this->createNodeAttribute('refPhpName', $tableNode->getAttribute('phpName'), $foreignKey);
+
+            $foreignKeyPhpName = $this->underscoreToCamelCase(str_replace("_{$fk['foreign_column']}", '', $fk['column_name']));
+            $this->createNodeAttribute('phpName', $foreignKeyPhpName, $foreignKey); //$this->underscoreToCamelCase($fk['foreign_table']), $foreignKey);
+
+            $foreignKeyRefPhpName = str_replace($this->underscoreToCamelCase("{$fk['foreign_table']}"), '', $tableNode->getAttribute('phpName'));
+            //$foreignKeyRefPhpName = $this->underscoreToCamelCase($tableNode->getAttribute('name'));
+            $this->createNodeAttribute('refPhpName', $foreignKeyRefPhpName, $foreignKey);
 
             $reference = $this->xml->createElement('reference');
             $this->createNodeAttribute('local', $fk['column_name'], $reference);
@@ -87,6 +100,21 @@ class Nexus_Generator_DbSchema
 
             $tableNode->appendChild($foreignKey);
         }
+
+        foreach ($this->xml->getElementsByTagName('foreign-key') as $fk)
+        {
+            $table = $fk->parentNode;
+
+            if ($table->getElementsByTagName('column')->length == 2 && $table->getElementsByTagName('foreign-key')->length == 2 &&
+            $this->xpath->query("//table[@name=\"{$table->getAttribute('name')}\"]/column[@primaryKey=\"true\"]")->length == 2 )
+            {
+                $this->createNodeAttribute('crossRefGroup', $table->getAttribute('name'), $fk);
+                $fk->setAttribute('refPhpName', $this->underscoreToCamelCase($table->getAttribute('name')));
+            }
+
+
+        }
+
     }
 
     protected function generateColumnDescription($column, DOMElement $tableNode, array $tableInfo)
