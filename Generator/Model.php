@@ -9,31 +9,40 @@
  */
 class Nexus_Generator_Model
 {
-    protected $schema;
-
+    /*
+     * По этому пути всё будет сложено
+     */
     protected $outputPath;
 
+    /*
+     * Префикс для моделей
+     */
     protected $outputPrefix;
+
+    protected $entities = array(
+        'tables' => array(),
+        'gateways' => array(),
+        'queries' => array(),
+        'rows' => array()
+    );
+
+    protected $schema;
 
     protected $xpath;
 
-    protected $processedManyToManyRelations = array();
-
-    protected $processedRelations = array();
-
-    protected $rows = array();
-
-    protected $queries = array();
-
     public function __construct()
     {
+        $config = new Zend_Config_Ini(APPLICATION_PATH . '/configs/nexus.ini', 'nexus');
+
+        $this->outputPrefix = $config->get('output_prefix');
+        $this->outputPath = sprintf("%s/%s",
+            realpath($config->get('output_path')),
+            $this->outputPrefix
+        );
+
         $this->schema = new DOMDocument();
-        $this->schema->load(APPLICATION_PATH . '/configs/db_schema.xml');
-
+        $this->schema->load(realpath($config->get('schema_path')) . "/{$config->get('schema_name')}");
         $this->xpath = new DOMXPath($this->schema);
-
-        $this->outputPrefix = 'MV';
-        $this->outputPath = realpath(APPLICATION_PATH . "/../library/{$this->outputPrefix}");
     }
 
     public function generate()
@@ -48,7 +57,7 @@ class Nexus_Generator_Model
 
         $this->generateForeignKeys();
 
-        foreach (array($this->rows, $this->queries) as $classes)
+        foreach ($this->entities as $classes)
         {
             foreach ($classes as $name => $class)
             {
@@ -58,16 +67,17 @@ class Nexus_Generator_Model
                     realpath(APPLICATION_PATH . '/../library'),
                     str_replace('_', '/', $name)
                 );
+
+                if (!is_dir(substr($path, 0, strrpos($path, '/'))))
+                    mkdir(substr($path, 0, strrpos($path, '/')), 0755, true);
+
                 file_put_contents($path, $file->generate());
             }
         }
-
     }
 
     protected function generateTable(DOMElement $table)
     {
-        $file = new Zend_CodeGenerator_Php_File();
-
         $class = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class('Nexus_Generator_Base_Table'));
         $class->setName($this->getTableName($table));
 
@@ -94,14 +104,11 @@ class Nexus_Generator_Model
                 'defaultValue' => false
             )));
 
-        $file->setClass($class);
-        file_put_contents($this->outputPath . "/Table/{$table->getAttribute('phpName')}.php", $file->generate());
+        $this->entities['tables'][$class->getName()] = $class;
     }
 
     protected function generateGateway($table)
     {
-        $file = new Zend_CodeGenerator_Php_File();
-
         $class = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class('Nexus_Generator_Base_Gateway'));
         $class->setName($this->getGatewayName($table));
         $class->setExtendedClass('Nexus_Gateway_Abstract');
@@ -164,14 +171,11 @@ class Nexus_Generator_Model
             ),
         )));
 
-        $file->setClass($class);
-        file_put_contents($this->outputPath . "/Gateway/{$table->getAttribute('phpName')}.php", $file->generate());
+        $this->entities['gateways'][$class->getName()] = $class;
     }
 
     protected function generateRow(DOMElement $table)
     {
-        $file = new Zend_CodeGenerator_Php_File();
-
         $class = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class('Nexus_Generator_Base_Row'));
         $class->setName($this->getRowName($table));
         $class->setExtendedClass('Nexus_Gateway_Row_Abstract');
@@ -215,8 +219,7 @@ class Nexus_Generator_Model
             )
         ));
 
-        $file->setClass($class);
-        file_put_contents($this->outputPath . "/Row/{$table->getAttribute('phpName')}.php", $file->generate());
+        $this->entities['rows'][$class->getName()] = $class;
 
         if (!file_exists($this->outputPath . "/{$table->getAttribute('phpName')}.php"))
         {
@@ -232,11 +235,7 @@ class Nexus_Generator_Model
 
     protected function generateQuery(DOMElement $table)
     {
-        if (!array_key_exists($this->getQueryName($table), $this->queries))
-            $this->queries[$this->getQueryName($table)] = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class('Nexus_Generator_Base_Query'));
-
-        $class = $this->queries[$this->getQueryName($table)];
-
+        $class = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class('Nexus_Generator_Base_Query'));
         $class->setName($this->getQueryName($table));
         $class->setExtendedClass('Nexus_Query_Abstract');
         $class->setProperty(new Zend_CodeGenerator_Php_Property(array(
@@ -293,8 +292,7 @@ class Nexus_Generator_Model
             ));
         }
 
-        //$file->setClass($class);
-        //file_put_contents($this->outputPath . "/Query/{$table->getAttribute('phpName')}.php", $file->generate());
+        $this->entities['queries'][$class->getName()] = $class;
     }
 
     protected function generateForeignKeys()
@@ -359,7 +357,7 @@ class Nexus_Generator_Model
         $foreignColumn = $inverse ? $foreignKey->getElementsByTagName('reference')->item(0)->getAttribute('local') : $foreignKey->getElementsByTagName('reference')->item(0)->getAttribute('foreign');
         $phpName = $inverse ? $foreignKey->getAttribute('refPhpName') : $foreignKey->getAttribute('phpName');
 
-        $queryClass = $this->queries[$this->getQueryName($table)];
+        $queryClass = $this->entities['queries'][$this->getQueryName($table)];
 
         if ($queryClass->hasProperty('referenceMap'))
             $referenceMap = $queryClass->getProperty('referenceMap');
@@ -451,11 +449,7 @@ class Nexus_Generator_Model
             }
         };
 
-        if (!array_key_exists($this->getRowName($table), $this->rows))
-            $this->rows[$this->getRowName($table)] = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class($this->getRowName($table)));
-
-        $rowClass = $this->rows[$this->getRowName($table)];
-
+        $rowClass = $this->entities['rows'][$this->getRowName($table)];
         $addMethods($rowClass, array(
             'finalRowName' => $this->getFinalRowName($foreignTable),
             'phpName' => $foreignKey->getAttribute('phpName'),
@@ -464,11 +458,7 @@ class Nexus_Generator_Model
             'foreignColumn' => $this->toCamelCase($reference->getAttribute('foreign'))
         ));
 
-        if (!array_key_exists($this->getRowName($foreignTable), $this->rows))
-            $this->rows[$this->getRowName($foreignTable)] = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class($this->getRowName($foreignTable)));
-
-        $rowClass = $this->rows[$this->getRowName($foreignTable)];
-
+        $rowClass = $this->entities['rows'][$this->getRowName($foreignTable)];
         $addMethods($rowClass, array(
             'finalRowName' => $this->getFinalRowName($table),
             'phpName' => $foreignKey->getAttribute('refPhpName'),
@@ -483,10 +473,7 @@ class Nexus_Generator_Model
         $foreignTable = $this->xpath->query("//table[@name=\"{$foreignKey->getAttribute('foreignTable')}\"]")->item(0);
         $reference = $foreignKey->getElementsByTagName('reference')->item(0);
 
-        if (!array_key_exists($this->getRowName($foreignTable), $this->rows))
-            $this->rows[$this->getRowName($foreignTable)] = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class($this->getRowName($foreignTable)));
-
-        $rowClass = $this->rows[$this->getRowName($foreignTable)];
+        $rowClass = $this->entities['rows'][$this->getRowName($foreignTable)];
 
         $phpName = $foreignKey->getAttribute('phpName');
         $refPhpName = $foreignKey->getAttribute('refPhpName');
@@ -561,14 +548,7 @@ class Nexus_Generator_Model
         $foreignTable = $this->xpath->query("//table[@name=\"{$foreignKey->getAttribute('foreignTable')}\"]")->item(0);
         $reference = $foreignKey->getElementsByTagName('reference')->item(0);
 
-        if (!array_key_exists($this->getRowName($table), $this->rows))
-            $this->rows[$this->getRowName($table)] = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class($this->getRowName($table)));
-
-        $rowClass = $this->rows[$this->getRowName($table)];
-
-        /*
-        $rowClass = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class($this->getRowName($table)));
-        */
+        $rowClass = $this->entities['rows'][$this->getRowName($table)];
 
         $phpName = $foreignKey->getAttribute('phpName');
         $query = $this->getQueryName($foreignTable);
@@ -614,10 +594,7 @@ class Nexus_Generator_Model
         $reference = $foreignKey->getElementsByTagName('reference')->item(0);
         $crossReference = $crossForeignKey->getElementsByTagName('reference')->item(0);
 
-        if (!array_key_exists($this->getRowName($foreignTable), $this->rows))
-            $this->rows[$this->getRowName($foreignTable)] = Zend_CodeGenerator_Php_Class::fromReflection(new Zend_Reflection_Class($this->getRowName($foreignTable)));
-
-        $rowClass = $this->rows[$this->getRowName($foreignTable)];
+        $rowClass = $this->entities['rows'][$this->getRowName($foreignTable)];
 
         echo $this->getRowName($foreignTable) . "\n";
 
