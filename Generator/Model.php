@@ -30,9 +30,9 @@ class Nexus_Generator_Model
 
     protected $xpath;
 
-    public function __construct()
+    public function __construct($configPath)
     {
-        $config = new Zend_Config_Ini(APPLICATION_PATH . '/configs/nexus.ini', 'nexus');
+        $config = new Zend_Config_Ini($configPath, 'nexus');
 
         $this->outputPrefix = $config->get('output_prefix');
         $this->outputPath = sprintf("%s/%s",
@@ -55,7 +55,18 @@ class Nexus_Generator_Model
             $this->generateQuery($table);
         }
 
-        $this->generateForeignKeys();
+        try
+        {
+            $this->generateForeignKeys();
+        }
+        catch (Zend_CodeGenerator_Php_Exception $e)
+        {
+            fwrite(STDOUT,
+                "-----------------------------------------------------------------------------------\n" .
+                "Error occured while creating relation method. Method with such name already exists.\n" .
+                "-----------------------------------------------------------------------------------\n" .
+                "You can try to resolve this conflict by adding attribute \"phpName\" to the column declaration in a xml schema.\n");
+        }
 
         foreach ($this->entities as $classes)
         {
@@ -319,12 +330,12 @@ class Nexus_Generator_Model
             }
             else if (!is_array($tablePk) && $tablePk == $reference->getAttribute('local'))
             {
-                echo "One to one relation detected - {$foreignKey->getAttribute('sqlName')}\n";
+                fwrite(STDOUT, "One to One\t\t {$foreignKey->getAttribute('sqlName')}\n");
                 $this->createOneToOneRowRelationMethod($table, $foreignKey);
             }
             else if ($foreignKey->hasAttribute('crossRefGroup') ) //&& !in_array($foreignKey->getAttribute('sqlName'), $processedRelations))
             {
-                echo "ManyToMany relation detected in {$table->getAttribute('name')}\n";
+                fwrite(STDOUT, "Many to Many\t\t {$table->getAttribute('name')}\n");
                 foreach ($this->xpath->query("//table/foreign-key[@crossRefGroup=\"{$foreignKey->getAttribute('crossRefGroup')}\"]") as $value)
                 {
                     if ($value->getAttribute('sqlName') == $foreignKey->getAttribute('sqlName'))
@@ -333,18 +344,16 @@ class Nexus_Generator_Model
                         $crossForeignKey = $value;
                 }
 
-                //Rows
                 $this->createManyToManyRowRelationMethod($foreignKey, $crossForeignKey);
             }
             else
             {
-                echo "One to many relation detected - {$foreignKey->getAttribute('sqlName')}\n";
+                fwrite(STDOUT, "One to Many\t\t {$foreignKey->getAttribute('sqlName')}\n");
                 // Rows
                 $this->createManyToOneRowRelationMethod($foreignKey->parentNode, $foreignKey);
                 $this->createOneToManyRowRelationMethod($foreignKey->parentNode, $foreignKey);
             }
 
-            //echo $foreignKey->getAttribute('name') . "\n";
             $processedRelations[] = $foreignKey->getAttribute('sqlName');
         }
     }
@@ -596,18 +605,11 @@ class Nexus_Generator_Model
 
         $rowClass = $this->entities['rows'][$this->getRowName($foreignTable)];
 
-        echo $this->getRowName($foreignTable) . "\n";
-
         $crossPhpName = $crossForeignKey->getAttribute('phpName');
         $localColumn = $this->toCamelCase($reference->getAttribute('local'));
         $foreignColumn = $this->toCamelCase($reference->getAttribute('foreign'));
         $crossLocalColumn = $this->toCamelCase($crossReference->getAttribute('local'));
         $crossForeignColumn = $this->toCamelCase($crossReference->getAttribute('foreign'));
-
-        /*
-        $phpName = $foreignKey->getAttribute('phpName');
-        $query = $this->getQueryName($table);
-        */
 
         $rowClass->setMethods(array(
             array(

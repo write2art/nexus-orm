@@ -23,6 +23,6 @@ $application = new Zend_Application(
 
 //$application->bootstrap();
 
-$generator = new Nexus_Generator_Model();
-echo "Generating dao models\n";
+$generator = new Nexus_Generator_Model(__DIR__ . "/nexus.ini");
+fwrite(STDOUT, "Generating models...\n");
 $generator->generate();
