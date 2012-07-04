@@ -419,43 +419,35 @@ class Nexus_Generator_Model
         $reference = $foreignKey->getElementsByTagName('reference')->item(0);
 
         $addMethods = function($rowClass, $p) {
-            try
-            {
-
-                $rowClass->setMethods(array(
-                    array(
-                        'docblock' => new Zend_CodeGenerator_Php_Docblock(array(
-                            'tags' => array(
-                                array(
-                                    'name' => 'return',
-                                    'description' => $p['finalRowName'], //$this->getFinalRowName($foreignTable),
-                                )
-                            ),
-                        )),
-                        'name' => "get{$p['phpName']}",
-                        'body' => "if (!array_key_exists('{$p['phpName']}', \$this->references) || (!\$this->references['{$p['phpName']}']->isModified() && !\$this->references['{$p['phpName']}']->isNew()) )\n" .
-                                  "    \$this->references['{$p['phpName']}'] = {$p['query']}::create()->findPk(\$this->get{$p['localColumn']}());\n\n" .
-                                  "return \$this->references['{$p['phpName']}'];"
-                    ),
-                    array(
-                        'name' => "set{$p['phpName']}",
-                        'parameters' => array(
+            $rowClass->setMethods(array(
+                array(
+                    'docblock' => new Zend_CodeGenerator_Php_Docblock(array(
+                        'tags' => array(
                             array(
-                                'name' => 'value',
-                                'type' => $p['finalRowName']
-                        )),
-                        'body' => "if (\$value->isNew())\n" .
-                                  "    \$this->references['{$p['phpName']}'] = \$value;\n" .
-                                  "else\n" .
-                                  "    \$this->set{$p['localColumn']}(\$value->get{$p['foreignColumn']}());\n\n" .
-                                  "return \$this;"
-                    )
-                ));
-            }
-            catch (Zend_Exception $e)
-            {
-                echo "Some problems occured during model generation in $rowClass\n";
-            }
+                                'name' => 'return',
+                                'description' => $p['finalRowName'], //$this->getFinalRowName($foreignTable),
+                            )
+                        ),
+                    )),
+                    'name' => "get{$p['phpName']}",
+                    'body' => "if (!array_key_exists('{$p['phpName']}', \$this->references) || (!\$this->references['{$p['phpName']}']->isModified() && !\$this->references['{$p['phpName']}']->isNew()) )\n" .
+                              "    \$this->references['{$p['phpName']}'] = {$p['query']}::create()->findPk(\$this->get{$p['localColumn']}());\n\n" .
+                              "return \$this->references['{$p['phpName']}'];"
+                ),
+                array(
+                    'name' => "set{$p['phpName']}",
+                    'parameters' => array(
+                        array(
+                            'name' => 'value',
+                            'type' => $p['finalRowName']
+                    )),
+                    'body' => "if (\$value->isNew())\n" .
+                              "    \$this->references['{$p['phpName']}'] = \$value;\n" .
+                              "else\n" .
+                              "    \$this->set{$p['localColumn']}(\$value->get{$p['foreignColumn']}());\n\n" .
+                              "return \$this;"
+                )
+            ));
         };
 
         $rowClass = $this->entities['rows'][$this->getRowName($table)];
@@ -552,6 +544,19 @@ class Nexus_Generator_Model
         ));
     }
 
+    protected function getColumnName($table, $column)
+    {
+        $columnNode = $this->xpath->query("//table[@name=\"$table\"]/column[@name=\"$column\"]")->item(0);
+
+        if ($columnNode->hasAttribute('phpName'))
+            return $columnNode->getAttribute('phpName');
+        else
+        {
+            $filter = new Nexus_Filter_CamelCase();
+            return $filter->filter($column);
+        }
+    }
+
     protected function createManyToOneRowRelationMethod(DOMElement $table, DOMElement $foreignKey)
     {
         $foreignTable = $this->xpath->query("//table[@name=\"{$foreignKey->getAttribute('foreignTable')}\"]")->item(0);
@@ -561,8 +566,9 @@ class Nexus_Generator_Model
 
         $phpName = $foreignKey->getAttribute('phpName');
         $query = $this->getQueryName($foreignTable);
-        $localColumn = $this->toCamelCase($reference->getAttribute('local'));
-        $foreignColumn = $this->toCamelCase($reference->getAttribute('foreign'));
+
+        $localColumn = $this->getColumnName($table->getAttribute('name'), $reference->getAttribute('local'));
+        $foreignColumn = $this->getColumnName($foreignTable->getAttribute('name'), $reference->getAttribute('foreign'));
 
         $rowClass->setMethods(array(
             array(

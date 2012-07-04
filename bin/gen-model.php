@@ -21,8 +21,6 @@ $application = new Zend_Application(
     APPLICATION_PATH . '/configs/application.ini'
 );
 
-//$application->bootstrap();
-
 $generator = new Nexus_Generator_Model(__DIR__ . "/nexus.ini");
 fwrite(STDOUT, "Generating models...\n");
 $generator->generate();
