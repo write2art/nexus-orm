@@ -1,13 +1,13 @@
 <?php
 
-namespace NexusN;
+namespace Nexus;
 
 use Zend\ModuleManager\ModuleManager;
 use Zend\ModuleManager\Feature\AutoloaderProviderInterface;
-use Zend\ModuleManager\Feature\ConfigProviderInterface;
-use Zend\ModuleManager\Feature\ServiceProviderInterface;
+//use Zend\ModuleManager\Feature\ConfigProviderInterface;
+//use Zend\ModuleManager\Feature\ServiceProviderInterface;
 
-class Module implements AutoloaderProviderInterface, ConfigProviderInterface
+class Module implements AutoloaderProviderInterface
 {
     public function getAutoloaderConfig()
     {
@@ -28,7 +28,26 @@ class Module implements AutoloaderProviderInterface, ConfigProviderInterface
         return include __DIR__ . '/config/module.config.php';
     }
 
-
+    public function getServiceConfig()
+    {
+        return array(
+            'factories' => array(
+                'nexus_module_options' => function ($sm) {
+                    $config = $sm->get('Config');
+                    return $config['nexus'];
+                },
+                'Generator\XmlSchema' => function ($sm) {
+                    $schema = new Generator\XmlSchema($sm->get('nexus_module_options'));
+                    $schema->setDbAdapter($sm->get('nexus_zend_db_adapter'));
+                    return $schema;
+                },
+                'Generator\Model' => function ($sm) {
+                    $generator = new Generator\Model($sm->get('nexus_module_options'));
+                    return $generator;
+                }
+            )
+        );
+    }
 
 
 

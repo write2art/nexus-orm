@@ -1,0 +1,32 @@
+<?php
+/**
+ * Nexus Configuration
+ *
+ * If you have a ./config/autoload/ directory set up for your project, you can
+ * drop this config file in it and change the values as you wish.
+ */
+$settings = array(
+    /**
+     * Zend\Db\Adapter\Adapter DI Alias
+     *
+     * Please specify the DI alias for the configured Zend\Db\Adapter\Adapter
+     * instance that ZfcUser should use.
+     */
+    //'zend_db_adapter' => 'Zend\Db\Adapter\Adapter',
+
+    /**
+     * End of Nexus configuration
+     */
+);
+
+/**
+ * You do not need to edit below this line
+ */
+return array(
+    'nexus' => $settings,
+    'service_manager' => array(
+        'aliases' => array(
+            'nexus_zend_db_adapter' => (isset($settings['zend_db_adapter'])) ? $settings['zend_db_adapter']: 'Zend\Db\Adapter\Adapter',
+        ),
+    ),
+);

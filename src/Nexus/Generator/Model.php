@@ -1,13 +1,15 @@
 <?php
 
+namespace Nexus\Generator;
+
 /**
- * Description of Generator_Model
+ * Description of Model
  *
  * This Class generates models from xml schema.
  *
  * @author tema
  */
-class Nexus_Generator_Model
+class Model
 {
     /*
      * По этому пути всё будет сложено
@@ -20,33 +22,37 @@ class Nexus_Generator_Model
     protected $outputPrefix;
 
     protected $entities = array(
-        'tables' => array(),
         'gateways' => array(),
         'queries' => array(),
         'rows' => array()
     );
 
+    protected $config = null;
+
     protected $schema;
 
     protected $xpath;
 
-    public function __construct($configPath)
+    public function __construct($config)
     {
-        $config = new Zend_Config_Ini($configPath, 'nexus');
+        $this->config = $config;
 
+        /*
         $this->outputPrefix = $config->get('output_prefix');
         $this->outputPath = sprintf("%s/%s",
             realpath($config->get('output_path')),
             $this->outputPrefix
         );
+        */
 
         $this->schema = new DOMDocument();
-        $this->schema->load(realpath($config->get('schema_path')) . "/{$config->get('schema_name')}");
+        $this->schema->load($config['output_schema_path']);
         $this->xpath = new DOMXPath($this->schema);
     }
 
     public function generate()
     {
+        /*
         foreach ($this->schema->getElementsByTagName('table') as $table)
         {
             $this->generateTable($table);
@@ -65,7 +71,7 @@ class Nexus_Generator_Model
                 "-----------------------------------------------------------------------------------\n" .
                 "Error occured while creating relation method. Method with such name already exists.\n" .
                 "-----------------------------------------------------------------------------------\n" .
-                "You can try to resolve this conflict by adding attribute \"phpName\" to the column declaration in a xml schema.\n");
+                "You can try to resolve this conflict by adding attribute \"phpName\" to the column declaration in an xml schema.\n");
         }
 
         foreach ($this->entities as $classes)
@@ -85,6 +91,9 @@ class Nexus_Generator_Model
                 file_put_contents($path, $file->generate());
             }
         }
+        */
+
+        return "Done!";
     }
 
     protected function generateTable(DOMElement $table)
